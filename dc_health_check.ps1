@@ -81,7 +81,11 @@ function Check-SysvolDiskSpace {
 
     try {
         # Get the size of the SYSVOL folder
-        $sysvolSize = (Get-ChildItem "\\$DomainController\SYSVOL" -Recurse | Measure-Object -Property Length -Sum).Sum
+        $sysvolSize = (Get-ChildItem "\\$DomainController\SYSVOL" -Recurse -File -Force | Measure-Object -Property Length -Sum).Sum
+
+        $files = Get-ChildItem "\\$DomainController\SYSVOL" -Recurse | Where-Object { -not $_.PSIsContainer }
+        Write-Host $files
+
         # Convert size to GB
         $sysvolSizeGB = [math]::Round($sysvolSize / 1GB, 2)
 
@@ -181,74 +185,64 @@ function Test-DomainControllerHealth {
     $domainControllers = Get-ADDomainController -Filter *
 
     foreach ($dc in $domainControllers) {
-        Write-Host "`nChecking health for domain controller: $($dc.HostName)" -ForegroundColor Yellow
+        Write-Host "`nHealth Check for Domain Controller: $($dc.HostName)" -ForegroundColor Cyan
+        Write-Host "--------------------------------------" -ForegroundColor Magenta
 
         # Check SYSVOL Replication Type
         $replicationTypeInfo = Check-SysvolReplicationType -DomainController $dc.HostName
-        Write-Host "SYSVOL Replication Type for $($dc.HostName): $($replicationTypeInfo.'SYSVOL Replication Mechanism')" -ForegroundColor Yellow
+        Write-Host "SYSVOL Replication: $($replicationTypeInfo.'SYSVOL Replication Mechanism')" -ForegroundColor Yellow
 
         # Check Key Services
         $services = @("NTDS", "DNS", "KDC", "Netlogon")
-        foreach ($service in $services) {
+        $serviceStatuses = $services | ForEach-Object {
             try {
-                $status = Get-Service -ComputerName $dc.HostName -Name $service -ErrorAction Stop
-                if ($status.Status -eq "Running") {
-                    Write-Host "$service service on $($dc.HostName): Running" -ForegroundColor Green
-                } else {
-                    Write-Host "$service service on $($dc.HostName): NOT RUNNING" -ForegroundColor Red
-                }
+                $status = Get-Service -ComputerName $dc.HostName -Name $_ -ErrorAction Stop
+                "$_ : " + $(if ($status.Status -eq "Running") { "Running" } else { "NOT RUNNING" })
             } catch {
-                Write-Host "Failed to retrieve status for $service on $($dc.HostName)" -ForegroundColor Red
+                "$_ : Error"
             }
         }
+        Write-Host "Service Statuses:`n$($serviceStatuses -join "`n")" -ForegroundColor Yellow
 
-        # Network Accessibility (Ping Test)
-        if (Test-Connection -ComputerName $dc.HostName -Count 2 -Quiet) {
-            Write-Host "Network accessibility for $($dc.HostName): OK" -ForegroundColor Green
-        } else {
-            Write-Host "Network accessibility for $($dc.HostName): UNREACHABLE" -ForegroundColor Red
-        }
+        # Network Accessibility
+        $networkStatus = if (Test-Connection -ComputerName $dc.HostName -Count 2 -Quiet) { "OK" } else { "UNREACHABLE" }
+        Write-Host "Network Accessibility: $networkStatus" -ForegroundColor Yellow
 
         # Check SYSVOL and NETLOGON Shares
-        foreach ($share in @("SYSVOL", "NETLOGON")) {
-            if (Test-Path "\\$($dc.HostName)\$share") {
-                Write-Host "$share share on $($dc.HostName): ACCESSIBLE" -ForegroundColor Green
-            } else {
-                Write-Host "$share share on $($dc.HostName): INACCESSIBLE" -ForegroundColor Red
-            }
+        $shares = @("SYSVOL", "NETLOGON")
+        $shareStatuses = $shares | ForEach-Object {
+            $status = if (Test-Path "\\$($dc.HostName)\$_") { "ACCESSIBLE" } else { "INACCESSIBLE" }
+            "$_ Share: $status"
         }
+        Write-Host "Share Statuses:`n$($shareStatuses -join "`n")" -ForegroundColor Yellow
 
         # Check SYSVOL Disk Space
         $diskSpaceCheck = Check-SysvolDiskSpace -DomainController $dc.HostName
         if ($diskSpaceCheck -ne $null) {
             $status = if ($diskSpaceCheck.IsSpaceSufficient) { "PASS" } else { "FAIL" }
             $statusColor = if ($diskSpaceCheck.IsSpaceSufficient) { 'Green' } else { 'Red' }
-
-            Write-Host "Disk Space Check for $($dc.HostName): $status" -ForegroundColor $statusColor
-            Write-Host "SYSVOL Size: $($diskSpaceCheck.SYSVOLSizeGB) GB, Free Space: $($diskSpaceCheck.FreeSpaceGB) GB, Required Space: $($diskSpaceCheck.RequiredSpaceGB) GB"
+            Write-Host "Disk Space: $status" -ForegroundColor $statusColor
+            Write-Host "Details: SYSVOL Size: $($diskSpaceCheck.SYSVOLSizeGB) GB, Free: $($diskSpaceCheck.FreeSpaceGB) GB, Required: $($diskSpaceCheck.RequiredSpaceGB) GB"
         }
 
         # Check "Manage Auditing and Security Log" Policy
         $isSecurityPolicySet = Check-SecurityPolicy -DomainController $dc.HostName
-        if ($isSecurityPolicySet -ne $null) {
-            $status = if ($isSecurityPolicySet) { "PASS" } else { "FAIL" }
-            $statusColor = if ($isSecurityPolicySet) { 'Green' } else { 'Red' }
-            Write-Host "Security Policy Check for $($dc.HostName): $status" -ForegroundColor $statusColor
-        }
-
+        $securityPolicyStatus = if ($isSecurityPolicySet) { "PASS" } else { "FAIL" }
+        $securityPolicyColor = if ($isSecurityPolicySet) { 'Green' } else { 'Red' }
+        Write-Host "Security Policy: $securityPolicyStatus" -ForegroundColor $securityPolicyColor
 
         # Check SYSVOL and Advertising
         $sysvolAdvertisingCheck = Check-SysvolAndAdvertising -DomainController $dc.HostName
         if ($sysvolAdvertisingCheck -ne $null) {
             $sysvolStatus = if ($sysvolAdvertisingCheck.IsSYSVOLHealthy) { "Healthy" } else { "Unhealthy" }
             $advertisingStatus = if ($sysvolAdvertisingCheck.IsAdvertising) { "Passing" } else { "Failing" }
-            Write-Host "SYSVOL Check for $($dc.HostName): $sysvolStatus"
-            Write-Host "Advertising Check for $($dc.HostName): $advertisingStatus"
+            Write-Host "SYSVOL: $sysvolStatus, Advertising: $advertisingStatus"
         }
 
-        Write-Host "--------------------------------------" -ForegroundColor Magenta
+        Write-Host "--------------------------------------`n" -ForegroundColor Magenta
     }
 }
+
 
 # Execute the health check function
 Test-DomainControllerHealth
