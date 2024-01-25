@@ -47,6 +47,109 @@ function Check-SysvolReplicationType {
     }
 }
 
+# Function to get SYSVOL size and check free disk space
+function Check-SysvolDiskSpace {
+    param (
+        [string]$DomainController
+    )
+
+    try {
+        # Get the size of the SYSVOL folder
+        $sysvolSize = (Get-ChildItem "\\$DomainController\SYSVOL" -Recurse | Measure-Object -Property Length -Sum).Sum
+        # Convert size to GB
+        $sysvolSizeGB = [math]::Round($sysvolSize / 1GB, 2)
+
+        # Get the free space on the drive where SYSVOL is located
+        $driveInfo = Get-WmiObject -Class Win32_LogicalDisk -ComputerName $DomainController -Filter "DeviceID='C:'"
+        $freeSpaceGB = [math]::Round($driveInfo.FreeSpace / 1GB, 2)
+
+        # Calculate required free space (SYSVOL size + 10%)
+        $requiredSpaceGB = [math]::Round($sysvolSizeGB * 1.1, 2)
+
+        # Check if free space is sufficient
+        $isSpaceSufficient = $freeSpaceGB -ge $requiredSpaceGB
+
+        $result = @{
+            "DomainController"    = $DomainController
+            "SYSVOLSizeGB"        = $sysvolSizeGB
+            "FreeSpaceGB"         = $freeSpaceGB
+            "RequiredSpaceGB"     = $requiredSpaceGB
+            "IsSpaceSufficient"   = $isSpaceSufficient
+        }
+
+        return $result
+    } catch {
+        Write-Host "Failed to check disk space for $DomainController" -ForegroundColor Red
+        return $null
+    }
+}
+
+# Function to check if SYSVOL is shared and DC is advertising
+function Check-SysvolAndAdvertising {
+    param (
+        [string]$DomainController
+    )
+
+    try {
+        $dcdiagResult = Invoke-Command -ComputerName $DomainController -ScriptBlock {
+            dcdiag /s:$env:COMPUTERNAME /test:sysvolcheck /test:advertising
+        }
+
+        # Parsing the result for SYSVOL check
+        $sysvolCheckMatch = $dcdiagResult -match "^\s*.* passed test SysVolCheck"
+        $sysvolCheck = $sysvolCheckMatch -ne $null
+
+        # Parsing the result for Advertising check
+        $advertisingCheckMatch = $dcdiagResult -match "^\s*.* passed test Advertising"
+        $advertisingCheck = $advertisingCheckMatch -ne $null
+
+        $result = @{
+            "DomainController"   = $DomainController
+            "IsSYSVOLHealthy"    = $sysvolCheck
+            "IsAdvertising"      = $advertisingCheck
+        }
+
+        return $result
+    } catch {
+        Write-Host "Failed to perform Dcdiag checks on $DomainController" -ForegroundColor Red
+        return $null
+    }
+}
+
+# Function to check the "Manage Auditing and Security Log" policy
+function Check-SecurityPolicy {
+    param (
+        [string]$DomainController
+    )
+
+    try {
+        $seceditExportPath = "\\$DomainController\c$\Temp\secpol.cfg"
+        $seceditReportPath = "\\$DomainController\c$\Temp\secpol.txt"
+
+        # Export the security settings to a file
+        Invoke-Command -ComputerName $DomainController -ScriptBlock {
+            secedit /export /cfg C:\Temp\secpol.cfg
+        }
+
+        # Convert the file to a readable format
+        Invoke-Command -ComputerName $DomainController -ScriptBlock {
+            secedit /export /areas USER_RIGHTS /cfg C:\Temp\secpol.cfg /log C:\Temp\secpol.txt
+        }
+
+        # Read and parse the file
+        $secpolContent = Get-Content -Path $seceditReportPath
+        $isAdminRightSet = $secpolContent -match "SeSecurityPrivilege\s*\*\s*S-1-5-32-544"
+
+        Remove-Item -Path $seceditExportPath -Force
+        Remove-Item -Path $seceditReportPath -Force
+
+        return $isAdminRightSet
+    } catch {
+        Write-Host "Failed to check security policy on $DomainController" -ForegroundColor Red
+        return $null
+    }
+}
+
 function Test-DomainControllerHealth {
     # Retrieve all domain controllers in the current domain
     $domainControllers = Get-ADDomainController -Filter *
@@ -95,6 +198,34 @@ function Test-DomainControllerHealth {
             } else {
                 Write-Host "$share share on $($dc.HostName): INACCESSIBLE" -ForegroundColor Red
             }
+        }
+
+        # Check SYSVOL Disk Space
+        $diskSpaceCheck = Check-SysvolDiskSpace -DomainController $dc.HostName
+        if ($diskSpaceCheck -ne $null) {
+            $status = if ($diskSpaceCheck.IsSpaceSufficient) { "PASS" } else { "FAIL" }
+            $statusColor = if ($diskSpaceCheck.IsSpaceSufficient) { 'Green' } else { 'Red' }
+
+            Write-Host "Disk Space Check for $($dc.HostName): $status" -ForegroundColor $statusColor
+            Write-Host "SYSVOL Size: $($diskSpaceCheck.SYSVOLSizeGB) GB, Free Space: $($diskSpaceCheck.FreeSpaceGB) GB, Required Space: $($diskSpaceCheck.RequiredSpaceGB) GB"
+        }
+
+        # Check "Manage Auditing and Security Log" Policy
+        $isSecurityPolicySet = Check-SecurityPolicy -DomainController $dc.HostName
+        if ($isSecurityPolicySet -ne $null) {
+            $status = if ($isSecurityPolicySet) { "PASS" } else { "FAIL" }
+            $statusColor = if ($isSecurityPolicySet) { 'Green' } else { 'Red' }
+            Write-Host "Security Policy Check for $($dc.HostName): $status" -ForegroundColor $statusColor
+        }
+
+
+        # Check SYSVOL and Advertising
+        $sysvolAdvertisingCheck = Check-SysvolAndAdvertising -DomainController $dc.HostName
+        if ($sysvolAdvertisingCheck -ne $null) {
+            $sysvolStatus = if ($sysvolAdvertisingCheck.IsSYSVOLHealthy) { "Healthy" } else { "Unhealthy" }
+            $advertisingStatus = if ($sysvolAdvertisingCheck.IsAdvertising) { "Passing" } else { "Failing" }
+            Write-Host "SYSVOL Check for $($dc.HostName): $sysvolStatus"
+            Write-Host "Advertising Check for $($dc.HostName): $advertisingStatus"
         }
 
         Write-Host "--------------------------------------" -ForegroundColor Magenta
