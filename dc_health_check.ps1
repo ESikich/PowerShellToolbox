@@ -33,18 +33,44 @@ function Check-SysvolReplicationType {
         [string]$DomainController
     )
 
-    $dfsrPath = "CN=SYSVOL Subscription,CN=Domain System Volume,CN=DFSR-LocalSettings,CN=$DomainController,OU=Domain Controllers,DC=<YourDomain>,DC=<YourTLD>"
+    # Get the current domain and default naming context
+    $currentDomain = (Get-ADDomainController -Identity $DomainController).hostname
+    $defaultNamingContext = (([ADSI]"LDAP://$currentDomain/rootDSE").defaultNamingContext)
 
-    try {
-        $dfsrObject = Get-ADObject -Identity $dfsrPath -Properties "msDFSR-Flags"
-        if ($dfsrObject."msDFSR-Flags") {
-            return "DFSR"
-        } else {
-            return "FSR"
+    # Prepare the searcher for Domain Controllers
+    $searcher = New-Object DirectoryServices.DirectorySearcher
+    $searcher.Filter = "(&(objectClass=computer)(dNSHostName=$currentDomain))"
+    $searcher.SearchRoot = "LDAP://" + $currentDomain + "/OU=Domain Controllers," + $defaultNamingContext
+    $dcObjectPath = $searcher.FindAll() | %{$_.Path}
+
+    # Check for DFSR
+    $searchDFSR = New-Object DirectoryServices.DirectorySearcher
+    $searchDFSR.Filter = "(&(objectClass=msDFSR-Subscription)(name=SYSVOL Subscription))"
+    $searchDFSR.SearchRoot = $dcObjectPath
+    $dfsrSubObject = $searchDFSR.FindAll()
+
+    if ($dfsrSubObject -ne $null) {
+        return [pscustomobject]@{
+            "SYSVOL Replication Mechanism" = "DFSR"
+            "Path" = $dfsrSubObject|%{$_.Properties."msdfsr-rootpath"}
         }
-    } catch {
-        return "FSR"  # Default to FSR if the DFSR object is not found
     }
+
+    # Check for FRS
+    $searchFRS = New-Object DirectoryServices.DirectorySearcher
+    $searchFRS.Filter = "(&(objectClass=nTFRSSubscriber)(name=Domain System Volume (SYSVOL share)))"
+    $searchFRS.SearchRoot = $dcObjectPath
+    $frsSubObject = $searchFRS.FindAll()
+
+    if ($frsSubObject -ne $null) {
+        return [pscustomobject]@{
+            "SYSVOL Replication Mechanism" = "FRS"
+            "Path" = $frsSubObject|%{$_.Properties.frsrootpath}
+        }
+    }
+
+    # Default return if neither DFSR nor FRS objects are found
+    return "Unknown"
 }
 
 # Function to get SYSVOL size and check free disk space
@@ -158,16 +184,8 @@ function Test-DomainControllerHealth {
         Write-Host "`nChecking health for domain controller: $($dc.HostName)" -ForegroundColor Yellow
 
         # Check SYSVOL Replication Type
-        $replicationType = Check-SysvolReplicationType -DomainController $dc.HostName
-        Write-Host "SYSVOL Replication Type for $($dc.HostName): $replicationType" -ForegroundColor Yellow
-
-        # Check Replication Status
-        try {
-            repadmin /showrepl $dc.HostName | Out-Null
-            Write-Host "Replication Status for $($dc.HostName): OK" -ForegroundColor Green
-        } catch {
-            Write-Host "Replication Status for $($dc.HostName): ERROR" -ForegroundColor Red
-        }
+        $replicationTypeInfo = Check-SysvolReplicationType -DomainController $dc.HostName
+        Write-Host "SYSVOL Replication Type for $($dc.HostName): $($replicationTypeInfo.'SYSVOL Replication Mechanism')" -ForegroundColor Yellow
 
         # Check Key Services
         $services = @("NTDS", "DNS", "KDC", "Netlogon")
