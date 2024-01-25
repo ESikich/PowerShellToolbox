@@ -18,11 +18,13 @@ Always test in a non-production environment before deploying in a live setting.
 #>
 
 # Import ActiveDirectory Module
-try {
+if (-not (Get-Module -Name ActiveDirectory -ListAvailable)) {
+    Write-Host "Active Directory module is not installed. Installing..."
+    Install-WindowsFeature RSAT-AD-PowerShell
     Import-Module ActiveDirectory -ErrorAction Stop
-} catch {
-    Write-Error "Failed to import Active Directory module. Please ensure it is installed."
-    exit
+    Write-Host "Active Directory module installed successfully."
+} else {
+    Import-Module ActiveDirectory -ErrorAction Stop
 }
 
 function Test-DomainControllerHealth {
