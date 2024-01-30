@@ -1,3 +1,13 @@
+function Quick-Ping {
+    param(
+        [string]$IPAddress,
+        [int]$TimeoutMilliSeconds = 100
+    )
+    $ping = New-Object System.Net.NetworkInformation.Ping
+    $reply = $ping.Send($IPAddress, $TimeoutMilliSeconds)
+    return $reply.Status -eq 'Success'
+}
+
 # Define the range of IP addresses to scan
 $ipRangeStart = "192.168.1.1"
 $ipRangeEnd = "192.168.1.254"
@@ -11,7 +21,7 @@ $start = [System.BitConverter]::ToUInt32($ipStart, 0)
 $end = [System.BitConverter]::ToUInt32($ipEnd, 0)
 $totalIps = $end - $start + 1
 $currentIp = 0
-$aliveIps = @()
+$aliveIps = New-Object System.Collections.Generic.List[System.Net.IPAddress]
 
 # Scan the network
 Write-Host "Scanning network..."
@@ -23,11 +33,10 @@ for ($i = $start; $i -le $end; $i++) {
 
     Write-Progress -Activity "Scanning Network" -Status "$ip" -PercentComplete (($currentIp / $totalIps) * 100)
 
-    if (Test-Connection -ComputerName $ip -Count 1 -Quiet) {
-        $aliveIps += $ip
+    if (Quick-Ping -IPAddress $ip) {
+        $aliveIps.Add($ip)
     }
 }
-
 
 # Scan each alive IP address for SMB shares
 foreach ($ip in $aliveIps) {
