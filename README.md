@@ -12,3 +12,7 @@ Designed to automate the migration process from File Replication Service (FRS) t
 ## smb_search.ps1
 ### Search for SMB Shares
 A script to scan the network and check for SMB file shares.
+
+## home_folder_update.ps1
+### Update home folders with new server name
+This script allows you to find and replace a string in AD user's home folders, eg. for a server upgrade/migration.
