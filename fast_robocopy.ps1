@@ -1,64 +1,87 @@
-function Quick-Ping {
+$CopyPath = ""
+$TargetPath = ""
+
+$TimeStamp = Get-Date -Format 'yyyy-MM-dd'
+$FileName = "C:\temp\Robocopy_$TimeStamp.log"
+
+# Check if C:\temp exists, if not create it
+if (-not (Test-Path -Path "C:\temp")) {
+    New-Item -ItemType Directory -Path "C:\temp"
+}
+
+function Buffered-Write {
     param(
-        [string]$IPAddress,
-        [int]$TimeoutMilliSeconds = 100
+        [Parameter(ValueFromPipeline=$true)]
+        [string]$InputObject,
+        [int]$BufferSize = 1000  # Number of lines to buffer before writing
     )
-    $ping = New-Object System.Net.NetworkInformation.Ping
-    $reply = $ping.Send($IPAddress, $TimeoutMilliSeconds)
-    return $reply.Status -eq 'Success'
-}
 
-# Define the range of IP addresses to scan
-$ipRangeStart = "192.168.1.1"
-$ipRangeEnd = "192.168.1.254"
-
-# Convert IP range to a sequence of IP addresses
-$ipStart = [System.Net.IPAddress]::Parse($ipRangeStart).GetAddressBytes()
-[System.Array]::Reverse($ipStart)
-$ipEnd = [System.Net.IPAddress]::Parse($ipRangeEnd).GetAddressBytes()
-[System.Array]::Reverse($ipEnd)
-$start = [System.BitConverter]::ToUInt32($ipStart, 0)
-$end = [System.BitConverter]::ToUInt32($ipEnd, 0)
-$totalIps = $end - $start + 1
-$currentIp = 0
-$aliveIps = @()
-
-# Ping scan to find alive IPs
-Write-Host "Performing initial ping scan..."
-for ($i = $start; $i -le $end; $i++)
-{
-    $currentIp++
-    $ipBytes = [System.BitConverter]::GetBytes($i)
-    [System.Array]::Reverse($ipBytes)
-    $ip = New-Object System.Net.IPAddress -ArgumentList (,[System.Byte[]]$ipBytes)
-
-
-    Write-Progress -Activity "Ping Scanning Network" -Status "$ip" -PercentComplete (($currentIp / $totalIps) * 100)
-
-    if (Quick-Ping -IPAddress $ip)
-    {
-        $aliveIps += $ip
+    begin {
+        # Initialize the buffer
+        $buffer = @()
     }
-}
-Write-Host "Ping scan complete. Alive IPs found: $($aliveIps.Count)"
 
-# Scan each alive IP address for SMB shares
-foreach ($ip in $aliveIps)
-{
-    try
-    {
-        # Query SMB shares on the IP address
-        $shares = Get-SmbShare -CimSession $ip -ErrorAction Stop
-        if ($shares)
-        {
-            foreach ($share in $shares)
-            {
-                Write-Output "Share found: $($share.Name) on $ip"
+    process {
+        try {
+            # Add input to the buffer
+            $buffer += $InputObject
+
+            # If buffer exceeds the specified size, write its content to the log file
+            if ($buffer.Count -ge $BufferSize) {
+                Add-Content -Path $FileName -Value $buffer
+                Write-Output $FileName
+                # Clear the buffer
+                $buffer = @()
             }
         }
+        catch {
+            # In case of error, write the error message to the log file
+            Add-Content -Path $FileName -Value "Error: $($_.Exception.Message)"
+        }
     }
-    catch
-    {
-        Write-Warning "Failed to retrieve shares from $ip"
+
+    end {
+        try {
+            # If there's any remaining content in the buffer, write it to the log file
+            if ($buffer.Count -gt 0) {
+                Add-Content -Path $FileName -Value $buffer
+            }
+        }
+        catch {
+            # In case of error, write the error message to the log file
+            Add-Content -Path $FileName -Value "Error: $($_.Exception.Message)"
+        }
     }
 }
+
+# Add a timestamp to the beginning of the temp file
+$StartTimestamp = Get-Date
+Add-Content -Path $FileName -Value "Script started at: $StartTimestamp"
+
+# Capture the start time
+$StartTime = Get-Date
+
+# Robocopy Flags:
+# /S: Copies subdirectories, excluding empty ones.
+# /E: Copies subdirectories, including empty ones.
+# /SEC: Copies files with security (equivalent to /COPY:DATS). 
+# /MIR: Mirrors the source directory and the destination (deletes files in the destination not present in the source).
+# /xo: Excludes older files - won't overwrite files at the destination that are newer than the source files.
+# /R:1: Specifies the number of retries on failed copies. In this case, it will retry once.
+# /W:1: Specifies the wait time between retries (in seconds). Here, it waits for 1 second.
+# /nc: No class - don't log the file class.
+# /np: No progress - don't display the progress percentage in the log.
+# /njh: No job header - don't log the job header information.
+# /MT:8: Multi-thread copies with 8 threads (available in Windows 7 and later).
+
+Robocopy $CopyPath $TargetPath /S /E /SEC /MIR /FFT /xo /R:1 /W:1 /nc /np /njh /MT:4 | Buffered-Write
+
+# Capture the end time
+$EndTime = Get-Date
+
+# Calculate the elapsed time
+$ElapsedTime = $EndTime - $StartTime
+
+# Add the end timestamp and elapsed time to the temp file
+Add-Content -Path $FileName -Value "Script ended at: $EndTime"
+Add-Content -Path $FileName -Value "Total time elapsed: $ElapsedTime"
