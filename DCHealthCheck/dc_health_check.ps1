@@ -1,4 +1,3 @@
-
 <#
 .SYNOPSIS
 This script checks the health of all domain controllers in the current Active Directory domain.
@@ -28,6 +27,29 @@ if (-not (Get-Module -Name ActiveDirectory -ListAvailable)) {
     Import-Module ActiveDirectory -ErrorAction Stop
     Write-Host "Active Directory module loaded successfully." -ForegroundColor Green
 }
+
+function Get-DomainFSMORoles {
+    $domain = Get-ADDomain
+    $forest = Get-ADForest
+
+    $fsmoRoles = @{
+        "Schema Master" = $forest.SchemaMaster;
+        "Domain Naming Master" = $forest.DomainNamingMaster;
+        "PDC Emulator" = $domain.PDCEmulator;
+        "RID Master" = $domain.RIDMaster;
+        "Infrastructure Master" = $domain.InfrastructureMaster;
+    }
+
+    Write-Host "`nDomain FSMO Roles for: $($domain.Name)" -ForegroundColor Cyan
+    Write-Host "--------------------------------------" -ForegroundColor Magenta
+
+    foreach ($role in $fsmoRoles.GetEnumerator()) {
+        Write-Host ("{0,-22}: {1}" -f $role.Key, $role.Value) -ForegroundColor Yellow
+    }
+
+    Write-Host "--------------------------------------`n" -ForegroundColor Magenta
+}
+
 
 function Check-SysvolReplicationType {
     param (
@@ -244,6 +266,8 @@ function Test-DomainControllerHealth {
     }
 }
 
-
 # Execute the health check function
 Test-DomainControllerHealth
+
+# Execute the FSMO roles check function
+Get-DomainFSMORoles
