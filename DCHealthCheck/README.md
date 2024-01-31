@@ -1,5 +1,5 @@
 
-# Check-DomainControllerHealth
+# DCHealthCheck
 
 This PowerShell script checks the health of all domain controllers in the current Active Directory domain. It performs various checks, including replication status, service status, network accessibility, and share availability.
 
