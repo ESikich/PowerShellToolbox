@@ -1,8 +1,8 @@
 # PowerShellToolbox
 A collection of PowerShell scripts
 
-## dc_health_check.ps1
-### Domain Controller Health Check Script
+## DC Health Check
+### Domain Controller Health Check
 A tool crafted for evaluating the operational state of domain controllers in an Active Directory environment. It performs a series of checks such as replication status, service functionality, network accessibility, and share availability. Additionally, it assesses the health of SYSVOL, runs diagnostic tests, and lists FSMO roles, aiding administrators in identifying and resolving potential issues to maintain the stability and efficiency of the domain infrastructure.
 
 ## frs_dfsr_migrate.ps1
