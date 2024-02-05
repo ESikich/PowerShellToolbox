@@ -2,7 +2,7 @@
 # Domain Controller Health Check Script
 
 ## Overview
-This PowerShell script is designed to assess the health of all domain controllers within an Active Directory domain. It's a comprehensive tool for system administrators and IT professionals to maintain the operational efficiency and integrity of domain controllers.
+Designed to assess the health of all domain controllers within an Active Directory domain. It's a comprehensive tool for system administrators and IT professionals to maintain the operational efficiency and integrity of domain controllers.
 
 ## Features
 - **Active Directory Module Check**: Ensures the Active Directory PowerShell module is installed and loaded.
