@@ -13,9 +13,8 @@ Automates the process of updating network drive mappings from an old server to a
 Identifies all drives mapped to the old server, removes these mappings, and then creates new mappings to the new server with the same drive letters.
 Checks each mapped drive against the old server's name, and if a match is found, it executes the update process using the net use command for persistent mappings.
 
-## frs_dfsr_migrate.ps1
-### FRS to DFSR SYSVOL Migration Script
-Designed to automate the migration process from File Replication Service (FRS) to Distributed File System Replication (DFSR) for the SYSVOL folder in Active Directory environments. This script facilitates a smooth and monitored transition through the three critical states of the migration process: Prepared, Redirected, and Eliminated.
+## FRS to DFSR SYSVOL Migration
+Automates the migration of SYSVOL replication from File Replication Service (FRS) to Distributed File System Replication (DFSR) in Active Directory environments. The script progresses through three key migration states—Prepared, Redirected, and Eliminated—using the Dfsrmig command to set the global state and verify the migration status on all domain controllers until each state is fully achieved. It includes a function, Migrate-SysvolState, to manage the migration process, with pauses to ensure that all domain controllers reach the required state before proceeding to the next.
 
 ## smb_search.ps1
 ### Search for SMB Shares
