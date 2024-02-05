@@ -8,7 +8,10 @@ A tool crafted for evaluating the operational state of domain controllers in an 
 Designed for file synchronization between two directories. The script employs a custom function, Buffered-Write, to manage the output from Robocopy operations efficiently. This function buffers a specified number of lines before writing them to the log file, aiming to optimize performance by reducing the number of write operations to disk and console by buffering them in memory.
 
 ## MappedDriveUpdate
-This PowerShell script automates the process of updating network drive mappings from an old server to a new one. It identifies all drives mapped to the old server, removes these mappings, and then creates new mappings to the new server with the same drive letters. The script operates by checking each mapped drive against the old server's name, and if a match is found, it executes the update process using the net use command for persistent mappings. Feedback is provided throughout, detailing each step from identification to the creation of new mappings. This tool simplifies the migration process for users or administrators moving resources to a new server.
+Simplifies the migration process for users or administrators moving resources to a new server.
+Automates the process of updating network drive mappings from an old server to a new one.
+Identifies all drives mapped to the old server, removes these mappings, and then creates new mappings to the new server with the same drive letters.
+Checks each mapped drive against the old server's name, and if a match is found, it executes the update process using the net use command for persistent mappings.
 
 ## frs_dfsr_migrate.ps1
 ### FRS to DFSR SYSVOL Migration Script
