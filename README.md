@@ -10,6 +10,9 @@ Automates the migration of SYSVOL replication from File Replication Service (FRS
 ## Fast RoboCopy
 Designed for file synchronization between two directories. The script employs a custom function, Buffered-Write, to manage the output from Robocopy operations efficiently. This function buffers a specified number of lines before writing them to the log file, aiming to optimize performance by reducing the number of write operations to disk and console by buffering them in memory.
 
+## Home Folder Update
+Updates Active Directory (AD) user home directories from an old server path to a new one. Retrieves AD users whose home directories reference the old server, displaying the proposed new paths for user confirmation. Upon agreement, it systematically updates each user's home directory attribute in AD to reflect the new server path. Includes a confirmation step to proceed with the updates.
+
 ## MappedDriveUpdate
 Simplifies the migration process for users or administrators moving resources to a new server.
 Automates the process of updating network drive mappings from an old server to a new one.
