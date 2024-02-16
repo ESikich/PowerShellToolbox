@@ -1,5 +1,5 @@
 
-# Network Discovery Script
+# Ping Scan
 
 ## Overview
 This PowerShell script is designed for network discovery within a specified subnet. It efficiently scans a range of IP addresses to identify active devices by pinging them and then attempts to retrieve their MAC addresses from the ARP table. This tool is invaluable for network administrators seeking to map out devices on a network.
