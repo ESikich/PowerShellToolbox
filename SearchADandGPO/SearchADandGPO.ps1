@@ -45,7 +45,7 @@ $processedGPOs = @{}
 function Add-Result {
     param ($type, $identifier, $property, $value)
     $key = "$type-$identifier"
-    if ($type -eq 'AD Object' -and -not $processedADObjects.ContainsKey($key)) {
+    if (-not $processedADObjects.ContainsKey($key) -and $type -eq 'AD Object') {
         $processedADObjects[$key] = $true
         $results.Add([PSCustomObject]@{
             Type       = $type
@@ -54,7 +54,7 @@ function Add-Result {
             Value      = $value
         })
     }
-    elseif ($type -eq 'GPO' -and -not $processedGPOs.ContainsKey($key)) {
+    elseif (-not $processedGPOs.ContainsKey($key) -and $type -eq 'GPO') {
         $processedGPOs[$key] = $true
         $results.Add([PSCustomObject]@{
             Type       = $type
@@ -65,7 +65,7 @@ function Add-Result {
     }
 }
 
-# Function to process AD objects and GPOs
+# Function to process AD objects and GPOs, focusing on unique entries
 function Process-Items {
     param (
         [string]$Type,
@@ -79,12 +79,23 @@ function Process-Items {
         Write-Progress -Activity "Processing $Type" -Status "$processedItemsCount of $totalItems processed" -PercentComplete (($processedItemsCount / $totalItems) * 100)
 
         $identifier = & $IdentifierExpression $item
-        $properties = $item | Get-Member -MemberType Properties
-        foreach ($property in $properties.Name) {
-            $value = $item.$property
+        if ($Type -eq 'GPO') {
+            $value = Get-GPOReport -Guid $item.Id -ReportType Xml -ErrorAction SilentlyContinue
             if ($value -match $searchString) {
-                Add-Result -type $Type -identifier $identifier -property $property -value "Contains '$searchString'"
-                break # Once a match is found for this object, no need to check further properties
+                Add-Result -type $Type -identifier $identifier -property "XML Report" -value "Contains '$searchString'"
+            }
+        } else {
+            $hasMatch = $false
+            $properties = $item | Get-Member -MemberType Properties
+            foreach ($property in $properties.Name) {
+                $value = $item.$property
+                if ($value -match $searchString) {
+                    $hasMatch = $true
+                    break # Found a match, no need to check further properties for AD Object
+                }
+            }
+            if ($hasMatch) {
+                Add-Result -type $Type -identifier $identifier -property "N/A" -value "Contains '$searchString'"
             }
         }
     }
