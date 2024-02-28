@@ -32,55 +32,59 @@ Import-Module ActiveDirectory
 Import-Module GroupPolicy
 
 # Define the search string, not case sensitive
-$searchString = "Users1"
+$searchString = "server6"
 
 # Initialize a list to hold the results
 $results = New-Object System.Collections.Generic.List[Object]
 
-# Define a streamlined function for adding results directly
+# Initialize hashtables to track processed items
+$processedADObjects = @{}
+$processedGPOs = @{}
+
+# Function to add results, ensuring uniqueness for AD Objects and GPOs
 function Add-Result {
     param ($type, $identifier, $property, $value)
-    $results.Add([PSCustomObject]@{
-        Type       = $type
-        Identifier = $identifier
-        Property   = $property
-        Value      = $value
-    })
+    $key = "$type-$identifier"
+    if ($type -eq 'AD Object' -and -not $processedADObjects.ContainsKey($key)) {
+        $processedADObjects[$key] = $true
+        $results.Add([PSCustomObject]@{
+            Type       = $type
+            Identifier = $identifier
+            Property   = $property
+            Value      = $value
+        })
+    }
+    elseif ($type -eq 'GPO' -and -not $processedGPOs.ContainsKey($key)) {
+        $processedGPOs[$key] = $true
+        $results.Add([PSCustomObject]@{
+            Type       = $type
+            Identifier = $identifier
+            Property   = $property
+            Value      = $value
+        })
+    }
 }
 
-# Define a function to process AD objects and GPOs in memory as much as possible
+# Function to process AD objects and GPOs
 function Process-Items {
     param (
         [string]$Type,
         [System.Collections.Generic.IEnumerable[Object]]$Items,
-        [scriptblock]$IdentifierExpression,
-        [scriptblock]$AdditionalProcessing = $null
+        [scriptblock]$IdentifierExpression
     )
     $totalItems = $Items.Count
-    $processedItems = 0
+    $processedItemsCount = 0
     foreach ($item in $Items) {
-        $processedItems++
-        Write-Progress -Activity "Processing $Type" -Status "$processedItems of $totalItems processed" -PercentComplete (($processedItems / $totalItems) * 100)
+        $processedItemsCount++
+        Write-Progress -Activity "Processing $Type" -Status "$processedItemsCount of $totalItems processed" -PercentComplete (($processedItemsCount / $totalItems) * 100)
 
         $identifier = & $IdentifierExpression $item
-        if ($Type -eq 'GPO') {
-            $value = Get-GPOReport -Guid $item.Id -ReportType Xml
+        $properties = $item | Get-Member -MemberType Properties
+        foreach ($property in $properties.Name) {
+            $value = $item.$property
             if ($value -match $searchString) {
-                Add-Result -type $Type -identifier $identifier -property "XML Report" -value "Contains '$searchString'"
-            }
-        } else {
-            $properties = $item | Get-Member -MemberType Properties
-            foreach ($property in $properties.Name) {
-                $value = $item.$property
-                if ($value -is [array]) {
-                    foreach ($itemValue in $value) {
-                        if ($itemValue -match $searchString) {
-                            Add-Result -type $Type -identifier $identifier -property $property -value $itemValue
-                        }
-                    }
-                } elseif ($value -match $searchString) {
-                    Add-Result -type $Type -identifier $identifier -property $property -value $value
-                }
+                Add-Result -type $Type -identifier $identifier -property $property -value "Contains '$searchString'"
+                break # Once a match is found for this object, no need to check further properties
             }
         }
     }
