@@ -26,7 +26,3 @@ You can customize the script to include additional user properties by modifying 
 
 ## Contributing
 Contributions to this script are welcome. Please ensure that any pull requests or issues adhere to the project's contribution guidelines.
-
-## License
-Specify the license under which this script is released, if applicable.
-
