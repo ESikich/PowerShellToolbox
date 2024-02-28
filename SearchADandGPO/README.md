@@ -24,7 +24,7 @@ Before running this script, ensure that you have:
 3. Execute the script:
 
     \`\`\`powershell
-    .\\SearchADandGPOs.ps1
+    .\\SearchADandGPO.ps1
     \`\`\`
 
 4. Follow the progress in the PowerShell console. The script will output locations where the specified string is found.
