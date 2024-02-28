@@ -34,59 +34,73 @@ Import-Module GroupPolicy
 # Define the search string, not case sensitive
 $searchString = "Users1"
 
-# Function to scan AD Objects
-function Scan-ADObjects {
-    Write-Output "Scanning Active Directory Objects..."
-    $allADObjects = Get-ADObject -Filter * -Properties *
-    $totalObjects = $allADObjects.Count
-    $currentObject = 0
+# Initialize a list to hold the results
+$results = New-Object System.Collections.Generic.List[Object]
 
-    foreach ($obj in $allADObjects) {
-        $currentObject++
-        $percentComplete = ($currentObject / $totalObjects) * 100
-        Write-Progress -Activity "Scanning Active Directory" -Status "$currentObject of $totalObjects objects scanned" -PercentComplete $percentComplete
+# Define a streamlined function for adding results directly
+function Add-Result {
+    param ($type, $identifier, $property, $value)
+    $results.Add([PSCustomObject]@{
+        Type       = $type
+        Identifier = $identifier
+        Property   = $property
+        Value      = $value
+    })
+}
 
-        $properties = $obj | Get-Member -MemberType Properties
-        foreach ($property in $properties) {
-            $value = $obj.$($property.Name)
-            if ($value -is [array]) {
-                foreach ($item in $value) {
-                    if ($item -match $searchString) {
-                        Write-Output "Found match in $($obj.DistinguishedName) on property $($property.Name) with value $item"
+# Define a function to process AD objects and GPOs in memory as much as possible
+function Process-Items {
+    param (
+        [string]$Type,
+        [System.Collections.Generic.IEnumerable[Object]]$Items,
+        [scriptblock]$IdentifierExpression,
+        [scriptblock]$AdditionalProcessing = $null
+    )
+    $totalItems = $Items.Count
+    $processedItems = 0
+    foreach ($item in $Items) {
+        $processedItems++
+        Write-Progress -Activity "Processing $Type" -Status "$processedItems of $totalItems processed" -PercentComplete (($processedItems / $totalItems) * 100)
+
+        $identifier = & $IdentifierExpression $item
+        if ($Type -eq 'GPO') {
+            $value = Get-GPOReport -Guid $item.Id -ReportType Xml
+            if ($value -match $searchString) {
+                Add-Result -type $Type -identifier $identifier -property "XML Report" -value "Contains '$searchString'"
+            }
+        } else {
+            $properties = $item | Get-Member -MemberType Properties
+            foreach ($property in $properties.Name) {
+                $value = $item.$property
+                if ($value -is [array]) {
+                    foreach ($itemValue in $value) {
+                        if ($itemValue -match $searchString) {
+                            Add-Result -type $Type -identifier $identifier -property $property -value $itemValue
+                        }
                     }
-                }
-            } else {
-                if ($value -match $searchString) {
-                    Write-Output "Found match in $($obj.DistinguishedName) on property $($property.Name) with value $value"
+                } elseif ($value -match $searchString) {
+                    Add-Result -type $Type -identifier $identifier -property $property -value $value
                 }
             }
         }
     }
+    Write-Progress -Activity "Processing $Type" -Status "Completed" -Completed
 }
 
-# Function to scan GPOs
-function Scan-GPOs {
-    Write-Output "Scanning Group Policy Objects..."
-    $allGPOs = Get-GPO -All
-    $totalGPOs = $allGPOs.Count
-    $currentGPO = 0
+# Scan Active Directory Objects
+$adObjects = Get-ADObject -Filter * -Properties *
+Write-Host "Scanning Active Directory Objects..."
+Process-Items -Type "AD Object" -Items $adObjects -IdentifierExpression { param($obj) $obj.DistinguishedName }
 
-    foreach ($gpo in $allGPOs) {
-        $currentGPO++
-        $percentComplete = ($currentGPO / $totalGPOs) * 100
-        Write-Progress -Activity "Scanning Group Policy Objects" -Status "$currentGPO of $totalGPOs GPOs scanned" -PercentComplete $percentComplete
+# Scan Group Policy Objects
+$gpos = Get-GPO -All
+Write-Host "Scanning Group Policy Objects..."
+Process-Items -Type "GPO" -Items $gpos -IdentifierExpression { param($gpo) $gpo.DisplayName }
 
-        $gpoReportXml = Get-GPOReport -Guid $gpo.Id -ReportType Xml
-        if ($gpoReportXml -match $searchString) {
-            Write-Output "Found match in GPO: $($gpo.DisplayName)"
-        }
-    }
+# Display results
+if ($results.Count -gt 0) {
+    $results | Format-Table -Property Type, Identifier, Property, Value -AutoSize
+} else {
+    Write-Output "No matches found."
 }
-
-# Execute scans
-Scan-ADObjects
-Scan-GPOs
-
-# Finalize progress
-Write-Progress -Activity "Scanning Active Directory and GPOs" -Completed -Status "Scan complete"
 Write-Output "Scanning complete."
