@@ -10,7 +10,7 @@ The script performs two main functions:
 It includes progress bars to indicate the progress of scans across AD objects and GPOs.
 
 .AUTHOR
-Your Name or Alias
+Erik Sikich
 
 .DATE
 Date of Creation: 2024-02-28
