@@ -1,6 +1,15 @@
 # PowerShellToolbox
 A collection of PowerShell scripts
 
+## Active Directory User Logon Details Script
+
+This script allows system administrators to extract and display details about active users in Active Directory who have a logon script, a mapped home folder, or both. Key features include:
+
+* Retrieval of user account configurations and recent activity.
+* Display of users' usernames, script names, home folders, and last logon times.
+* Requirement of PowerShell 5.1 or higher and the Active Directory module for Windows PowerShell.
+* Customization options to include additional user properties.
+
 ## DC Health Check
 A tool crafted for evaluating the operational state of domain controllers in an Active Directory environment. It performs a series of checks such as replication status, service functionality, network accessibility, and share availability. Additionally, it assesses the health of SYSVOL, runs diagnostic tests, and lists FSMO roles, aiding administrators in identifying and resolving potential issues to maintain the stability and efficiency of the domain infrastructure.
 
