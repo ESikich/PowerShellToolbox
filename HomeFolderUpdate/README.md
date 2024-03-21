@@ -1,4 +1,4 @@
-H# Active Directory Home Directory Update Script
+## Active Directory Home Directory Update Script
 
 ## Overview
 This PowerShell script is designed to automate the process of updating the home directory paths for users in Active Directory. It searches for users whose home directory is currently set to a specific server path and updates it to a new server path.
