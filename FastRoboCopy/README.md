@@ -16,14 +16,7 @@ This PowerShell script is designed to perform robust file copying (robocopy) wit
 
 ## Usage
 
-1. Modify the `$CopyPath` and `$TargetPath` variables in the script to specify the source and destination directories.
-2. Run the script in PowerShell:
-
-   ```powershell
-   PS> .\YourScriptName.ps1
-   ```
-
-3. Check the `C:\temp\Robocopy_[TimeStamp].log` file for the log details.
+Modify the `$CopyPath` and `$TargetPath` variables in the script to specify the source and destination directories.
 
 ## Log File
 
