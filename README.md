@@ -1,7 +1,7 @@
 # PowerShellToolbox
 A collection of PowerShell scripts
 
-## <a href="https://github.com/ESikich/PowerShellToolbox/tree/main/ActiveDirectoryUserLogonDetails">Active DirectorActive Directory User Logon Details</a>
+## <a href="https://github.com/ESikich/PowerShellToolbox/tree/main/ActiveDirectoryUserLogonDetails">Active Directory User Logon Details</a>
 
 Retrieves active users from Active Directory with logon scripts or home folders mapped, displaying their username, script name, home folder, and last logon time in a formatted table.
 
