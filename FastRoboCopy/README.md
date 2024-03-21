@@ -1,4 +1,4 @@
-# Robocopy Script with Logging
+# Fast Robocopy
 
 This PowerShell script is designed to perform robust file copying (robocopy) with detailed logging. It is useful for backing up, mirroring, or migrating data with specific requirements.
 
