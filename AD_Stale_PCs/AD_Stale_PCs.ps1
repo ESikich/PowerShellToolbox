@@ -71,3 +71,12 @@ $properties = @(
 )
 
 $sortedActivity | Format-Table -Property $properties -AutoSize
+
+# Display in a formatted table
+$sortedActivity | Format-Table -Property $properties -AutoSize
+
+# Export to a CSV file
+$sortedActivity | Select-Object @{Name='ComputerName'; Expression={$_.Key}},
+                                 @{Name='LastLogonDate'; Expression={$_.Value.LastLogonDate}},
+                                 @{Name='LastLogonEventTime'; Expression={$_.Value.LastLogonEventTime}} |
+Export-Csv -Path "AD_Stale_PCs_Report.csv" -NoTypeInformation
